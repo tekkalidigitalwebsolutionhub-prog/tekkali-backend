@@ -7,8 +7,9 @@ const app = express();
 app.use(cors()); // Remote access kosam
 app.use(express.json());
 
-// In-memory array for dynamic staff storage (Database replace sese varaku)
+// In-memory arrays / variables for dynamic storage (Database replace sese varaku)
 let staffDatabase = [];
+let currentAdminPassword = process.env.ADMIN_PASS || "ADMIN123";
 
 // Login Route (Both Admin & Staff)
 app.post('/api/login', (req, res) => {
@@ -17,7 +18,7 @@ app.post('/api/login', (req, res) => {
     const cleanPass = pass ? pass.trim() : '';
 
     // 1. Check Admin Credentials
-    if (cleanId === process.env.ADMIN_ID && cleanPass === process.env.ADMIN_PASS) {
+    if (cleanId === process.env.ADMIN_ID && cleanPass === currentAdminPassword) {
         return res.json({ success: true, role: 'ADMIN', message: 'Admin authenticated' });
     }
 
@@ -63,14 +64,12 @@ app.post('/api/admin/change-password', async (req, res) => {
             return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long' });
         }
 
-        if (currentPass !== "ADMIN123") { 
+        if (currentPass !== currentAdminPassword) { 
             return res.status(400).json({ success: false, message: 'Current password is incorrect' });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const newPasswordHash = await bcrypt.hash(newPass, salt);
-
-        console.log("New Password Hash:", newPasswordHash);
+        // Update admin password in runtime memory
+        currentAdminPassword = newPass.trim();
 
         return res.json({ 
             success: true, 
@@ -88,7 +87,7 @@ app.get('/api/staff/list', (req, res) => {
     res.json({ success: true, staffList: staffDatabase });
 });
 
-// Render dynamically port assign chesthundhi (Single time only)
+// Render dynamically port assign chesthundhi
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
