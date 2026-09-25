@@ -94,4 +94,3 @@ app.post('/api/admin/change-password', async (req, res) => {
 // Fetch Staff List Route
 app.get('/api/staff/list', (req, res) => {
     res.json({ success: true, staffList: staffDatabase });
-});
