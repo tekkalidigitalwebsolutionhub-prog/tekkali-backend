@@ -95,5 +95,3 @@ app.post('/api/admin/change-password', async (req, res) => {
 app.get('/api/staff/list', (req, res) => {
     res.json({ success: true, staffList: staffDatabase });
 });
-
-const PORT = process.env.PORT || 5000;
