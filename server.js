@@ -7,12 +7,6 @@ const app = express();
 app.use(cors()); // Remote access kosam
 app.use(express.json());
 
-// Render dynamically port assign chesthundhi
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
-
 // In-memory array for dynamic staff storage (Database replace sese varaku)
 let staffDatabase = [];
 
@@ -55,6 +49,7 @@ app.post('/api/staff/save', (req, res) => {
 
     return res.json({ success: true, staffList: staffDatabase });
 });
+
 // Admin Password Change Route
 app.post('/api/admin/change-password', async (req, res) => {
     try {
@@ -68,13 +63,10 @@ app.post('/api/admin/change-password', async (req, res) => {
             return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long' });
         }
 
-        // Demo Admin credentials check (Leda database search)
-        // Express lo plain check leda bcrypt compare
-        if (currentPass !== "ADMIN123") { // Leda bcrypt compare vadandi
+        if (currentPass !== "ADMIN123") { 
             return res.status(400).json({ success: false, message: 'Current password is incorrect' });
         }
 
-        // Salt & Hash generate cheyadam
         const salt = await bcrypt.genSalt(10);
         const newPasswordHash = await bcrypt.hash(newPass, salt);
 
@@ -94,3 +86,10 @@ app.post('/api/admin/change-password', async (req, res) => {
 // Fetch Staff List Route
 app.get('/api/staff/list', (req, res) => {
     res.json({ success: true, staffList: staffDatabase });
+});
+
+// Render dynamically port assign chesthundhi (Single time only)
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
