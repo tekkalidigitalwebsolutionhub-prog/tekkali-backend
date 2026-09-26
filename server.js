@@ -64,17 +64,24 @@ app.post('/api/admin/change-password', async (req, res) => {
             return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long' });
         }
 
-        if (currentPass !== currentAdminPassword) { 
+        // Current password check cheyyali
+        if (currentPass.trim() !== currentAdminPassword.trim()) { 
             return res.status(400).json({ success: false, message: 'Current password is incorrect' });
         }
 
-        // Update admin password in runtime memory
+        // Update password properly
         currentAdminPassword = newPass.trim();
 
         return res.json({ 
             success: true, 
             message: 'Admin password updated successfully in backend!' 
         });
+
+    } catch (error) {
+        console.error("Backend Error:", error);
+        return res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
 
     } catch (error) {
         console.error("Backend Error:", error);
