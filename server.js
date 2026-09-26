@@ -83,12 +83,6 @@ app.post('/api/admin/change-password', async (req, res) => {
     }
 });
 
-    } catch (error) {
-        console.error("Backend Error:", error);
-        return res.status(500).json({ success: false, message: 'Server error' });
-    }
-});
-
 // Fetch Staff List Route
 app.get('/api/staff/list', (req, res) => {
     res.json({ success: true, staffList: staffDatabase });
