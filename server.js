@@ -21,6 +21,12 @@ const staffSchema = new mongoose.Schema({
 });
 const Staff = mongoose.model('Staff', staffSchema);
 
+const adminSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    pass: { type: String, required: true }
+});
+const Admin = mongoose.model('Admin', adminSchema);
+
 const agreementSchema = new mongoose.Schema({
     projectId: { type: String, required: true, unique: true },
     category: String,
@@ -80,8 +86,18 @@ app.post('/api/login', async (req, res) => {
         const cleanId = id ? id.trim().toUpperCase() : '';
         const cleanPass = pass ? pass.trim() : '';
 
-        if (cleanId === ADMIN_ID && cleanPass === currentAdminPassword) {
-            return res.json({ success: true, role: 'ADMIN', message: 'Admin authenticated' });
+        if (cleanId === ADMIN_ID) {
+            let adminUser = await Admin.findOne({ username: ADMIN_ID });
+            let isMatchAdmin = false;
+            if (adminUser) {
+                isMatchAdmin = await bcrypt.compare(cleanPass, adminUser.pass);
+            } else {
+                isMatchAdmin = (cleanPass === currentAdminPassword);
+            }
+
+            if (isMatchAdmin) {
+                return res.json({ success: true, role: 'ADMIN', message: 'Admin authenticated' });
+            }
         }
 
         const staffUser = await Staff.findOne({ code: cleanId });
@@ -125,7 +141,7 @@ app.delete('/api/staff/delete/:code', async (req, res) => {
     }
 });
 
-// Admin Password Change Route
+// Admin Password Change Route (Cloud Database Synced)
 app.post('/api/admin/change-password', async (req, res) => {
     try {
         const { currentPass, newPass } = req.body;
@@ -138,12 +154,32 @@ app.post('/api/admin/change-password', async (req, res) => {
             return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long' });
         }
 
-        if (currentPass.trim() !== currentAdminPassword.trim()) { 
+        let adminUser = await Admin.findOne({ username: ADMIN_ID });
+        let isMatch = false;
+
+        if (adminUser) {
+            isMatch = await bcrypt.compare(currentPass.trim(), adminUser.pass);
+        } else {
+            isMatch = (currentPass.trim() === currentAdminPassword.trim());
+        }
+
+        if (!isMatch) {
             return res.status(400).json({ success: false, message: 'Current password is incorrect' });
         }
 
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPass.trim(), salt);
+
+        if (adminUser) {
+            adminUser.pass = hashedPassword;
+            await adminUser.save();
+        } else {
+            adminUser = new Admin({ username: ADMIN_ID, pass: hashedPassword });
+            await adminUser.save();
+        }
+
         currentAdminPassword = newPass.trim();
-        return res.json({ success: true, message: 'Admin password updated successfully!' });
+        return res.json({ success: true, message: 'Admin password updated successfully in Database!' });
     } catch (error) {
         console.error("Password Change Error:", error);
         return res.status(500).json({ success: false, message: 'Server error' });
@@ -164,8 +200,13 @@ app.get('/api/agreements', async (req, res) => {
 app.post('/api/agreements/save', async (req, res) => {
     try {
         const newAgreementData = req.body;
-        const newAgreement = new Agreement(newAgreementData);
-        await newAgreement.save();
+        const existing = await Agreement.findOne({ projectId: newAgreementData.projectId });
+        if (existing) {
+            await Agreement.updateOne({ projectId: newAgreementData.projectId }, newAgreementData);
+        } else {
+            const newAgreement = new Agreement(newAgreementData);
+            await newAgreement.save();
+        }
         const agreements = await Agreement.find({});
         res.json({ success: true, agreements });
     } catch (error) {
