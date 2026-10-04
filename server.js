@@ -6,23 +6,18 @@ const bcrypt = require('bcryptjs');
 
 const app = express();
 
-app.use(cors()); 
+app.use(cors()); // Remote access kosam
 app.use(express.json());
 
-// MongoDB Connection Setup
-const MONGO_URI = process.env.MONGO_URI;
-if (!MONGO_URI) {
-    console.error("Error: MONGO_URI environment variable is missing!");
-}
-
-mongoose.connect(MONGO_URI)
+// 1. MongoDB Connection Setup (Deprecated options removed)
+mongoose.connect(process.env.MONGO_URI)
 .then(() => console.log("MongoDB Connected Successfully"))
 .catch(err => console.log("DB Connection Error:", err));
 
-// Mongoose Schema & Models for Staff
+// 2. Mongoose Schema & Models for Staff
 const staffSchema = new mongoose.Schema({
     code: { type: String, required: true, unique: true },
-    pass: { type: String, required: true } 
+    pass: { type: String, required: true } // Hashed password storage
 });
 const Staff = mongoose.model('Staff', staffSchema);
 
@@ -40,6 +35,7 @@ const handleStaffSaveOrRegister = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing Code or Password' });
         }
 
+        // Hash password before saving
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(cleanPass, salt);
 
@@ -67,10 +63,12 @@ app.post('/api/login', async (req, res) => {
         const cleanId = id ? id.trim().toUpperCase() : '';
         const cleanPass = pass ? pass.trim() : '';
 
+        // 1. Check Admin Credentials
         if (cleanId === ADMIN_ID && cleanPass === currentAdminPassword) {
             return res.json({ success: true, role: 'ADMIN', message: 'Admin authenticated' });
         }
 
+        // 2. Check Dynamic Staff Credentials from MongoDB using bcrypt compare
         const staffUser = await Staff.findOne({ code: cleanId });
         if (staffUser) {
             const isMatch = await bcrypt.compare(cleanPass, staffUser.pass);
@@ -88,6 +86,8 @@ app.post('/api/login', async (req, res) => {
 
 // Save / Update Staff Route
 app.post('/api/staff/save', handleStaffSaveOrRegister);
+
+// Alias for register route compatibility (Direct function call instead of router hack)
 app.post('/api/register', handleStaffSaveOrRegister);
 
 // Admin Password Change Route
@@ -104,7 +104,7 @@ app.post('/api/admin/change-password', async (req, res) => {
         }
 
         if (currentPass.trim() !== currentAdminPassword.trim()) { 
-            return res.status(400).json({ success: false, message: 'Current password is incorrect'  });
+            return res.status(400).json({ success: false, message: 'Current password is incorrect' });
         }
 
         currentAdminPassword = newPass.trim();
@@ -121,7 +121,7 @@ app.post('/api/admin/change-password', async (req, res) => {
 });
 
 // Fetch Staff List Route
-app.get('/api/staff/list', async (req, `res`) => {
+app.get('/api/staff/list', async (req, res) => {
     try {
         const staffList = await Staff.find({}, { code: 1, _id: 0 });
         res.json({ success: true, staffList });
