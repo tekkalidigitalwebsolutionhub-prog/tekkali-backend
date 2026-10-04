@@ -6,25 +6,43 @@ const bcrypt = require('bcryptjs');
 
 const app = express();
 
-app.use(cors()); // Remote access kosam
+app.use(cors()); 
 app.use(express.json());
 
-// 1. MongoDB Connection Setup (Deprecated options removed)
+// 1. MongoDB Connection Setup
 mongoose.connect(process.env.MONGO_URI)
 .then(() => console.log("MongoDB Connected Successfully"))
 .catch(err => console.log("DB Connection Error:", err));
 
-// 2. Mongoose Schema & Models for Staff
+// 2. Mongoose Schemas & Models
 const staffSchema = new mongoose.Schema({
     code: { type: String, required: true, unique: true },
-    pass: { type: String, required: true } // Hashed password storage
+    pass: { type: String, required: true } 
 });
 const Staff = mongoose.model('Staff', staffSchema);
+
+const agreementSchema = new mongoose.Schema({
+    projectId: { type: String, required: true, unique: true },
+    category: String,
+    clientName: String,
+    companyName: String,
+    email: String,
+    phone: String,
+    panId: String,
+    address: String,
+    empId: String,
+    budget: Number,
+    advance: Number,
+    balance: Number,
+    date: String,
+    signatureImage: String
+});
+const Agreement = mongoose.model('Agreement', agreementSchema);
 
 let currentAdminPassword = process.env.ADMIN_PASS || "ADMIN123";
 const ADMIN_ID = process.env.ADMIN_ID || "ADMIN";
 
-// Helper function to handle staff save/register logic securely
+// Helper function for Staff Save/Register
 const handleStaffSaveOrRegister = async (req, res) => {
     try {
         const { code, pass } = req.body;
@@ -35,7 +53,6 @@ const handleStaffSaveOrRegister = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing Code or Password' });
         }
 
-        // Hash password before saving
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(cleanPass, salt);
 
@@ -48,7 +65,7 @@ const handleStaffSaveOrRegister = async (req, res) => {
             await staffUser.save();
         }
 
-        const staffList = await Staff.find({}, { code: 1, _id: 0 });
+        const staffList = await Staff.find({}, { code: 1, pass: 1, _id: 0 });
         return res.json({ success: true, staffList });
     } catch (error) {
         console.error("Save Staff Error:", error);
@@ -56,19 +73,17 @@ const handleStaffSaveOrRegister = async (req, res) => {
     }
 };
 
-// Login Route (Both Admin & Staff)
+// Login Route
 app.post('/api/login', async (req, res) => {
     try {
         const { id, pass } = req.body;
         const cleanId = id ? id.trim().toUpperCase() : '';
         const cleanPass = pass ? pass.trim() : '';
 
-        // 1. Check Admin Credentials
         if (cleanId === ADMIN_ID && cleanPass === currentAdminPassword) {
             return res.json({ success: true, role: 'ADMIN', message: 'Admin authenticated' });
         }
 
-        // 2. Check Dynamic Staff Credentials from MongoDB using bcrypt compare
         const staffUser = await Staff.findOne({ code: cleanId });
         if (staffUser) {
             const isMatch = await bcrypt.compare(cleanPass, staffUser.pass);
@@ -84,11 +99,31 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Save / Update Staff Route
+// Staff Routes
 app.post('/api/staff/save', handleStaffSaveOrRegister);
-
-// Alias for register route compatibility (Direct function call instead of router hack)
 app.post('/api/register', handleStaffSaveOrRegister);
+
+app.get('/api/staff/list', async (req, res) => {
+    try {
+        const staffList = await Staff.find({}, { code: 1, pass: 1, _id: 0 });
+        res.json({ success: true, staffList });
+    } catch (error) {
+        console.error("Fetch Staff Error:", error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+app.delete('/api/staff/delete/:code', async (req, res) => {
+    try {
+        const code = req.params.code.toUpperCase();
+        await Staff.deleteOne({ code });
+        const staffList = await Staff.find({}, { code: 1, pass: 1, _id: 0 });
+        res.json({ success: true, staffList });
+    } catch (error) {
+        console.error("Delete Staff Error:", error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
 
 // Admin Password Change Route
 app.post('/api/admin/change-password', async (req, res) => {
@@ -108,35 +143,45 @@ app.post('/api/admin/change-password', async (req, res) => {
         }
 
         currentAdminPassword = newPass.trim();
-
-        return res.json({ 
-            success: true, 
-            message: 'Admin password updated successfully in backend!' 
-        });
-
+        return res.json({ success: true, message: 'Admin password updated successfully!' });
     } catch (error) {
-        console.error("Backend Error:", error);
+        console.error("Password Change Error:", error);
         return res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
-// Fetch Staff List Route
-app.get('/api/staff/list', async (req, res) => {
+// --- AGREEMENTS ROUTES (Cross-Device Sync) ---
+app.get('/api/agreements', async (req, res) => {
     try {
-        const staffList = await Staff.find({}, { code: 1, _id: 0 });
-        res.json({ success: true, staffList });
+        const agreements = await Agreement.find({});
+        res.json({ success: true, agreements });
     } catch (error) {
-        console.error("Fetch Staff Error:", error);
+        console.error("Fetch Agreements Error:", error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
-app.get('/api/executives', async (req, res) => {
+app.post('/api/agreements/save', async (req, res) => {
     try {
-        const users = await Staff.find({}, { code: 1, _id: 0 });
-        res.json({ success: true, users, staffList: users });
+        const newAgreementData = req.body;
+        const newAgreement = new Agreement(newAgreementData);
+        await newAgreement.save();
+        const agreements = await Agreement.find({});
+        res.json({ success: true, agreements });
     } catch (error) {
-        console.error("Fetch Executives Error:", error);
+        console.error("Save Agreement Error:", error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+app.delete('/api/agreements/delete/:projectId', async (req, res) => {
+    try {
+        const projectId = req.params.projectId;
+        await Agreement.deleteOne({ projectId });
+        const agreements = await Agreement.find({});
+        res.json({ success: true, agreements });
+    } catch (error) {
+        console.error("Delete Agreement Error:", error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
