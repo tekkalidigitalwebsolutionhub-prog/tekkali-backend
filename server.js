@@ -141,6 +141,23 @@ app.delete('/api/staff/delete/:code', async (req, res) => {
     }
 });
 
+// --- ADMIN PASSWORD ROUTES (Cross-Device Sync) ---
+
+// Get current active admin password reference
+app.get('/api/admin/password', async (req, res) => {
+    try {
+        let adminUser = await Admin.findOne({ username: ADMIN_ID });
+        if (adminUser) {
+            // Hash ni return cheyamu kani sync status kosam success istham (optional unte password plain text badhulu status pamvochu)
+            return res.json({ success: true, hasCustomPassword: true });
+        }
+        return res.json({ success: true, hasCustomPassword: false, defaultPassword: currentAdminPassword });
+    } catch (error) {
+        console.error("Fetch Admin Password Error:", error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
 // Admin Password Change Route (Cloud Database Synced)
 app.post('/api/admin/change-password', async (req, res) => {
     try {
